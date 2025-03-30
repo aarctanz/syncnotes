@@ -1,0 +1,10 @@
+<component name="libraryTable">
+  <library name="fifesoft.rsyntaxtextarea" type="repository">
+    <properties maven-id="com.fifesoft:rsyntaxtextarea:3.6.0" />
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/com/fifesoft/rsyntaxtextarea/3.6.0/rsyntaxtextarea-3.6.0.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
