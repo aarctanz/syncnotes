@@ -7,19 +7,27 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.List;
 import java.util.ArrayList;
+
+import com.vladsch.flexmark.html.HtmlRenderer;
+import com.vladsch.flexmark.parser.Parser;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.RTextScrollPane;
+import com.vladsch.flexmark.util.ast.Node;
 
 public class Home extends JFrame {
     private JButton toggleSidebarButton, newNoteButton, searchButton, favoritesButton;
     private JButton profileButton, previewButton;
-    private JPanel sidebar, editorPanel, previewPanel, fileExplorerPanel, topPanel;
+    private JPanel sidebar, editorPanel, fileExplorerPanel, topPanel;
+    private JScrollPane previewPanel;
+    private JTextPane previewPane;
     private JLabel openedFileLabel;
     private RSyntaxTextArea textEditor;
     private RTextScrollPane editorScrollPane;
     private List<String> fileList;
     private String currentFile;
+    private Parser markdownParser;
+    private HtmlRenderer htmlRenderer;
 
     public Home() {
         setTitle("DocSync - Editor");
@@ -27,6 +35,9 @@ public class Home extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         fileList = new ArrayList<>();
+
+        markdownParser = Parser.builder().build();
+        htmlRenderer = HtmlRenderer.builder().build();
 
         // Top bar with buttons
         JPanel topBar = new JPanel(new BorderLayout());
@@ -70,14 +81,14 @@ public class Home extends JFrame {
         textEditor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_MARKDOWN);
         textEditor.setCodeFoldingEnabled(true);
         textEditor.setFont(new Font("Monospaced", Font.PLAIN, 14));
-
+        textEditor.addCaretListener(e -> updatePreview());
 
         editorScrollPane = new RTextScrollPane(textEditor);
         editorPanel.add(editorScrollPane, BorderLayout.CENTER);
         
 
         // Markdown Preview Panel (Initially empty and empty)
-        JTextPane previewPane = new JTextPane();
+        previewPane = new JTextPane();
         previewPane.setContentType("text/html");
         previewPane.setEditable(false);
         JScrollPane previewScrollPane = new JScrollPane(previewPane);
@@ -130,6 +141,18 @@ public class Home extends JFrame {
         newNote.addActionListener(e->{
             createNewFile();
         });
+//        hideEditor();
+    }
+
+    class File{
+        private String name;
+        private String code;
+        private int id;
+
+        public File(String name, int id) {
+            this.name = name;
+            this.id = id;
+        }
     }
 
     private void createNewFile(){
@@ -180,6 +203,25 @@ public class Home extends JFrame {
         fileExplorerPanel.repaint();
     }
 
+
+    private void updatePreview() {
+        String markdownText = textEditor.getText();
+        Node document = markdownParser.parse(markdownText);
+        String html = htmlRenderer.render(document);
+        previewPane.setText("<html><body>" + html + "</body></html>");
+    }
+
+    private void hideEditor(){
+        editorPanel.setVisible(false);
+        editorScrollPane.setVisible(false);
+        textEditor.setVisible(false);
+    }
+
+    private void showEditor(){
+        editorPanel.setVisible(true);
+        editorScrollPane.setVisible(true);
+        textEditor.setVisible(true);
+    }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
