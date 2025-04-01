@@ -5,67 +5,59 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.regex.Pattern;
+import java.io.*;
+import java.net.*;
 
 public class LoginForm extends JFrame {
     private JTextField emailField;
     private JPasswordField passwordField;
     private JButton loginButton;
-    private JLabel logoLabel;
 
-//    private static final Color BACKGROUND_COLOR = new Color(32, 32, 32); // Dark Gray
+    private static final String SERVER_HOST = "localhost";
+    private static final int SERVER_PORT = 5000;
+
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
     private static final Color PRIMARY_COLOR = new Color(150, 86, 248); // Purple Accent
-//    private static final Color SECONDARY_COLOR = new Color(44, 44, 44); // Darker Gray
-//    private static final Color TEXT_COLOR = new Color(220, 220, 220); // Light Gray
 
     public LoginForm() {
         setTitle("Login - DocSync");
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new GridBagLayout());
-//        getContentPane().setBackground(BACKGROUND_COLOR);
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         // Logo
-        logoLabel = new JLabel(new ImageIcon("logo.png")); // Load the logo
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
-        add(logoLabel, gbc);
+//        logoLabel = new JLabel(new ImageIcon("logo.png")); // Load the logo
+//        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+//        add(logoLabel, gbc);
 
         JLabel emailLabel = createSmoothLabel("Email:");
-//        emailLabel.setForeground(TEXT_COLOR);
         gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 1;
         add(emailLabel, gbc);
 
         emailField = new JTextField(20);
-//        emailField.setBackground(SECONDARY_COLOR);
-//        emailField.setForeground(TEXT_COLOR);
-//        emailField.setCaretColor(TEXT_COLOR);
         gbc.gridx = 1;
         add(emailField, gbc);
 
         JLabel passwordLabel = createSmoothLabel("Password:");
-//        passwordLabel.setForeground(TEXT_COLOR);
         gbc.gridx = 0; gbc.gridy = 2;
         add(passwordLabel, gbc);
 
         passwordField = new JPasswordField(20);
-//        passwordField.setBackground(SECONDARY_COLOR);
-//        passwordField.setForeground(TEXT_COLOR);
-//        passwordField.setCaretColor(TEXT_COLOR);
         gbc.gridx = 1;
         add(passwordField, gbc);
 
         loginButton = new JButton("Login");
-//        loginButton.setBackground(PRIMARY_COLOR);
-//        loginButton.setForeground(Color.WHITE);
         loginButton.setFocusPainted(false);
         gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
         add(loginButton, gbc);
 
         JLabel registerLabel = new JLabel("Don't have an account? ");
-//        registerLabel.setForeground(TEXT_COLOR);
         JButton registerLink = new JButton("Create an account");
         registerLink.setBorderPainted(false);
         registerLink.setContentAreaFilled(false);
@@ -77,7 +69,6 @@ public class LoginForm extends JFrame {
         });
 
         JPanel registerPanel = new JPanel();
-//        registerPanel.setBackground(BACKGROUND_COLOR);
         registerPanel.add(registerLabel);
         registerPanel.add(registerLink);
         gbc.gridy = 4;
@@ -86,7 +77,7 @@ public class LoginForm extends JFrame {
         loginButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                handleLogin();
+                handleLogin(e);
             }
         });
     }
@@ -103,12 +94,51 @@ public class LoginForm extends JFrame {
         };
     }
 
-    private void handleLogin() {
-        String email = emailField.getText();
-        String password = new String(passwordField.getPassword());
+    private void handleLogin(ActionEvent e) {
+        String email = emailField.getText().trim().replace("|", "");
+        String password = new String(passwordField.getPassword()).trim();
 
-        // TODO: Send login request to server
-        JOptionPane.showMessageDialog(this, "Login clicked for " + email);
+        if (email.isEmpty() || password.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "All fields are required.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            JOptionPane.showMessageDialog(this, "Invalid email format.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (password.length() < 6) {
+            JOptionPane.showMessageDialog(this, "Password must be at least 6 characters long.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+             PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+            String request = String.format("LOGIN|%s|%s", email, password);
+            writer.println(request);
+            String response = reader.readLine();
+
+            if (response.startsWith("SUCCESS")) {
+                String[] parts = response.split("\\|");
+                if (parts.length >= 2) {
+                    String sessionId = parts[1];
+                    JOptionPane.showMessageDialog(this, "Login successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+
+                    new Home(sessionId).setVisible(true);
+                    dispose();
+                } else {
+                    JOptionPane.showMessageDialog(this, "Invalid server response.", "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            } else {
+                JOptionPane.showMessageDialog(this, response, "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error connecting to server.", "Error", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace();
+        }
     }
 
     public static void main(String[] args) {

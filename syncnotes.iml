@@ -11,5 +11,6 @@
     <orderEntry type="library" name="formdev.flatlaf.intellij.themes" level="project" />
     <orderEntry type="library" name="fifesoft.rsyntaxtextarea" level="project" />
     <orderEntry type="library" name="vladsch.flexmark.all" level="project" />
+    <orderEntry type="library" name="postgresql" level="project" />
   </component>
 </module>

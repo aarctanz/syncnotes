@@ -5,73 +5,62 @@ import com.formdev.flatlaf.FlatDarkLaf;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.net.*;
+import java.io.*;
+import java.util.regex.Pattern;
 
 public class RegisterForm extends JFrame {
     private JTextField nameField, emailField;
     private JPasswordField passwordField;
     private JButton registerButton;
 
-    private static final Color BACKGROUND_COLOR = new Color(32, 32, 32); // Dark Gray
+    private static final String SERVER_HOST = "localhost";
+    private static final int SERVER_PORT = 5000;
+
+
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
     private static final Color PRIMARY_COLOR = new Color(150, 86, 248);  // Green Accent
-    private static final Color SECONDARY_COLOR = new Color(44, 44, 44); // Darker Gray
-    private static final Color TEXT_COLOR = new Color(220, 220, 220); // Light Gray
 
     public RegisterForm() {
-        setTitle("Register - DocSync");
+        setTitle("Register - SyncNotes");
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new GridBagLayout());
-//        getContentPane().setBackground(BACKGROUND_COLOR);
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JLabel nameLabel = new JLabel("Name:");
-//        nameLabel.setForeground(TEXT_COLOR);
         gbc.gridx = 0; gbc.gridy = 0;
         add(nameLabel, gbc);
 
         nameField = new JTextField(20);
-//        nameField.setBackground(SECONDARY_COLOR);
-//        nameField.setForeground(TEXT_COLOR);
-//        nameField.setCaretColor(TEXT_COLOR);
         gbc.gridx = 1;
         add(nameField, gbc);
 
         JLabel emailLabel = new JLabel("Email:");
-//        emailLabel.setForeground(TEXT_COLOR);
         gbc.gridx = 0; gbc.gridy = 1;
         add(emailLabel, gbc);
 
         emailField = new JTextField(20);
-//        emailField.setBackground(SECONDARY_COLOR);
-//        emailField.setForeground(TEXT_COLOR);
-//        emailField.setCaretColor(TEXT_COLOR);
         gbc.gridx = 1;
         add(emailField, gbc);
 
         JLabel passwordLabel = new JLabel("Password:");
-//        passwordLabel.setForeground(TEXT_COLOR);
         gbc.gridx = 0; gbc.gridy = 2;
         add(passwordLabel, gbc);
 
         passwordField = new JPasswordField(20);
-//        passwordField.setBackground(SECONDARY_COLOR);
-//        passwordField.setForeground(TEXT_COLOR);
-//        passwordField.setCaretColor(TEXT_COLOR);
         gbc.gridx = 1;
         add(passwordField, gbc);
 
         registerButton = new JButton("Register");
-//        registerButton.setBackground(PRIMARY_COLOR);
-//        registerButton.setForeground(Color.WHITE);
         registerButton.setFocusPainted(false);
         gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
         add(registerButton, gbc);
 
         JLabel loginLabel = new JLabel("Already have an account? ");
-//        loginLabel.setForeground(TEXT_COLOR);
         JButton loginLink = new JButton("Login here");
         loginLink.setBorderPainted(false);
         loginLink.setContentAreaFilled(false);
@@ -83,7 +72,6 @@ public class RegisterForm extends JFrame {
         });
 
         JPanel loginPanel = new JPanel();
-//        loginPanel.setBackground(BACKGROUND_COLOR);
         loginPanel.add(loginLabel);
         loginPanel.add(loginLink);
         gbc.gridy = 4;
@@ -92,18 +80,51 @@ public class RegisterForm extends JFrame {
         registerButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                handleRegister();
+                handleRegister(e);
             }
         });
     }
 
-    private void handleRegister() {
-        String name = nameField.getText();
-        String email = emailField.getText();
-        String password = new String(passwordField.getPassword());
+    private void handleRegister(ActionEvent e) {
+        String name = nameField.getText().trim();
+        String email = emailField.getText().trim();
+        String password = new String(passwordField.getPassword()).trim();
 
-        // TODO: Send register request to server
-        JOptionPane.showMessageDialog(this, "Registration clicked for " + name);
+        if (name.isEmpty() || email.isEmpty() || password.isEmpty() || name.length()<3
+        ) {
+            JOptionPane.showMessageDialog(this, "All fields are required.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (!EMAIL_PATTERN.matcher(email).matches()) {
+            JOptionPane.showMessageDialog(this, "Invalid email format.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (password.length() < 6) {
+            JOptionPane.showMessageDialog(this, "Password must be at least 6 characters long.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+             PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+            String request = String.format("REGISTER|%s|%s|%s", name, email, password);
+            writer.println(request);
+            String response = reader.readLine();
+
+            if (response.startsWith("SUCCESS")) {
+                JOptionPane.showMessageDialog(this, "Registration successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                new LoginForm().setVisible(true);
+                dispose();
+            } else {
+                JOptionPane.showMessageDialog(this, response, "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this, "Error connecting to server.", "Error", JOptionPane.ERROR_MESSAGE);
+            ex.printStackTrace();
+        }
     }
 
     public static void main(String[] args) {

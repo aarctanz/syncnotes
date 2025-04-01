@@ -29,7 +29,9 @@ public class Home extends JFrame {
     private Parser markdownParser;
     private HtmlRenderer htmlRenderer;
 
-    public Home() {
+    private String sessionId;
+    public Home(String sessionId) {
+        this.sessionId = sessionId;
         setTitle("DocSync - Editor");
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -226,7 +228,7 @@ public class Home extends JFrame {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             ThemeManager.applyTheme();
-            new Home().setVisible(true);
+            new Home("").setVisible(true);
         });
     }
 }
