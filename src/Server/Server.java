@@ -60,6 +60,7 @@ public class Server {
     }
 
     private static String handleRequest(String request) {
+        System.out.println(request);
         String[] parts = request.split("\\|", 2);
         String command = parts[0];
         String data = parts.length > 1 ? parts[1] : "";
@@ -69,6 +70,16 @@ public class Server {
                 return registerUser(data);
             case "LOGIN":
                 return loginUser(data);
+            case "CREATE_FILE":
+                return createFile(data);
+            case "QUERY_FILES":
+                return  queryAllFiles(data);
+            case "UPDATE_FILE":
+                return updateFile(data);
+            case "QUERY_FILE":
+                return querySingleFile(data);
+            case "DELETE_FILE":
+                return deleteFile(data);
             default:
                 return "ERROR Unknown command";
         }
@@ -96,6 +107,31 @@ public class Server {
         }
     }
 
+//    private static String loginUser(String data) {
+//        try {
+//            String[] credentials = data.split("\\|");
+//            if (credentials.length < 2) return "ERROR Invalid format";
+//
+//            String email = credentials[0];
+//            String password = credentials[1];
+//
+//            PreparedStatement stmt = connection.prepareStatement("SELECT * FROM users WHERE email = ? AND password = ?");
+//            stmt.setString(1, email);
+//            stmt.setString(2, password);
+//            ResultSet rs = stmt.executeQuery();
+//
+//            if (rs.next()) {
+//                String sessionId = UUID.randomUUID().toString();
+//                sessions.put(sessionId, email);
+//                return "SUCCESS|" + sessionId;
+//            } else {
+//                return "ERROR Invalid credentials";
+//            }
+//        } catch (SQLException e) {
+//            return "ERROR Database error";
+//        }
+//    }
+
     private static String loginUser(String data) {
         try {
             String[] credentials = data.split("\\|");
@@ -104,20 +140,114 @@ public class Server {
             String email = credentials[0];
             String password = credentials[1];
 
-            PreparedStatement stmt = connection.prepareStatement("SELECT * FROM users WHERE email = ? AND password = ?");
+            PreparedStatement stmt = connection.prepareStatement("SELECT id FROM users WHERE email = ? AND password = ?");
             stmt.setString(1, email);
             stmt.setString(2, password);
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
+                String userId = String.valueOf(rs.getInt("id")); // Fetch user_id from result set
                 String sessionId = UUID.randomUUID().toString();
-                sessions.put(sessionId, email);
+                sessions.put(sessionId, userId); // Store user_id instead of email
                 return "SUCCESS|" + sessionId;
             } else {
                 return "ERROR Invalid credentials";
             }
         } catch (SQLException e) {
             return "ERROR Database error";
+        }
+    }
+    private static String createFile(String data) {
+        String sessionId = data.split("\\|")[0];
+        String fileName = data.split("\\|")[1];
+        String userId = sessions.get(sessionId);
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "INSERT INTO notes (user_id, name) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS)) {
+            stmt.setInt(1, Integer.parseInt(userId));
+            stmt.setString(2, fileName);
+            stmt.executeUpdate();
+
+            return "SUCCESS|File created";
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return "ERROR|Failed to create file";
+        }
+    }
+
+    private static String queryAllFiles(String sessionId) {
+        String userId = sessions.get(sessionId);
+        System.out.println(userId+" " + sessionId);
+        System.out.println("here");
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "SELECT id, name FROM notes WHERE user_id = ?")) {
+            stmt.setInt(1, Integer.parseInt(userId));
+
+            ResultSet rs = stmt.executeQuery();
+
+            List<String> files = new ArrayList<>();
+            while (rs.next()) {
+                files.add(rs.getInt("id") + ":" + rs.getString("name"));
+            }
+            return "SUCCESS|" + String.join(",", files);
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return "ERROR|Failed to retrieve files";
+        }
+    }
+
+    private static String updateFile(String data) {
+        System.out.println(data);
+
+        String[] parts = data.split("\\|", 3);
+
+        String sessionId = parts[0];
+        String fileId = parts[1];
+        String content = parts[2];
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "UPDATE notes SET content = ? WHERE id = ?")) {
+            stmt.setString(1, content);
+            stmt.setInt(2, Integer.parseInt(fileId));
+
+            int rows = stmt.executeUpdate();
+            return rows > 0 ? "SUCCESS|File updated" : "ERROR|File not found";
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return "ERROR|Failed to update file";
+        }
+    }
+
+    private static String querySingleFile(String data) {
+        String sessionId = data.split("\\|")[0];
+        String fileId = data.split("\\|")[1];
+        int userId = Integer.parseInt(sessions.get(sessionId));
+
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "SELECT content FROM notes WHERE id = ? AND user_id = ?")) {
+            stmt.setInt(1, Integer.parseInt(fileId));
+            stmt.setInt(2, userId);
+
+            ResultSet rs = stmt.executeQuery();
+            return rs.next() ? "SUCCESS|" + rs.getString("content") : "ERROR|File not found";
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return "ERROR|Failed to retrieve file";
+        }
+    }
+
+    private static String deleteFile(String data) {
+        String sessionId = data.split("\\|")[0];
+        String fileId = data.split("\\|")[1];
+
+        try (PreparedStatement stmt = connection.prepareStatement(
+                "DELETE FROM notes WHERE id = ? AND user_id = (SELECT id FROM users WHERE session_id = ?)")) {
+            stmt.setInt(1, Integer.parseInt(fileId));
+            stmt.setString(2, sessionId);
+
+            int rows = stmt.executeUpdate();
+            return rows > 0 ? "SUCCESS|File deleted" : "ERROR|File not found";
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return "ERROR|Failed to delete file";
         }
     }
 }

@@ -15,6 +15,9 @@ import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import com.vladsch.flexmark.util.ast.Node;
 
+import java.net.*;
+import java.io.*;
+
 public class Home extends JFrame {
     private JButton toggleSidebarButton, newNoteButton, searchButton, favoritesButton;
     private JButton profileButton, previewButton;
@@ -24,19 +27,33 @@ public class Home extends JFrame {
     private JLabel openedFileLabel;
     private RSyntaxTextArea textEditor;
     private RTextScrollPane editorScrollPane;
-    private List<String> fileList;
-    private String currentFile;
     private Parser markdownParser;
     private HtmlRenderer htmlRenderer;
 
+    private List<File> fileList;
+    private File currentFile;
+
     private String sessionId;
+
+    private static final String SERVER_HOST = "localhost";
+    private static final int SERVER_PORT = 5000;
+
     public Home(String sessionId) {
         this.sessionId = sessionId;
-        setTitle("DocSync - Editor");
+        if (sessionId.isEmpty()){
+            JOptionPane.showMessageDialog(this, "Please Login first", "Error", JOptionPane.ERROR_MESSAGE);
+            new LoginForm().setVisible(true);
+            dispose();
+        }
+        fileList = new ArrayList<>();
+        queryAllFiles();
+
+        setTitle("SyncNotes - Editor");
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        fileList = new ArrayList<>();
+
+        currentFile = null;
 
         markdownParser = Parser.builder().build();
         htmlRenderer = HtmlRenderer.builder().build();
@@ -52,6 +69,7 @@ public class Home extends JFrame {
         JButton favorites = new JButton("★");
 
         // Profile & Preview toggle button on the right
+        JButton saveButton = new JButton("save");
         JButton previewToggle = new JButton("👁️");
         JButton profile = new JButton("👤");
 
@@ -60,6 +78,7 @@ public class Home extends JFrame {
         leftButtons.add(search);
         leftButtons.add(favorites);
 
+        rightButtons.add(saveButton);
         rightButtons.add(previewToggle);
         rightButtons.add(profile);
 
@@ -140,8 +159,13 @@ public class Home extends JFrame {
                 }
             }
         });
+
         newNote.addActionListener(e->{
             createNewFile();
+        });
+
+        saveButton.addActionListener(e->{
+            handleSaveFile(e);
         });
 //        hideEditor();
     }
@@ -155,41 +179,56 @@ public class Home extends JFrame {
             this.name = name;
             this.id = id;
         }
+
+
+        public static boolean checkExists(String filename, List<File> fileList){
+            for (File file: fileList){
+                if (filename.equals(file.name)){
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     private void createNewFile(){
         String fileName = JOptionPane.showInputDialog(this, "Enter File name: ", "New file", JOptionPane.PLAIN_MESSAGE);
         if (fileName!=null && !fileName.trim().isEmpty()){
-            fileList.add(fileName);
-//            System.out.println(fileList);
-            currentFile = fileName;
-            openedFileLabel.setText(currentFile);
-            updateFileExplorer();
+            if (File.checkExists(fileName, fileList)){
+                JOptionPane.showMessageDialog(this, "Filename already exists.", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
 
-            // Todo: add new file to the database and refetch all the files.
+            sendRequest("CREATE_FILE|" + sessionId + "|" + fileName);
+            queryAllFiles();
+            updateFileExplorer();
         }
     }
 
-    private void openFile(String fileName){
-        currentFile = fileName;
-        openedFileLabel.setText(currentFile);
+    private void openFile(File file){
+        currentFile = file;
+        openedFileLabel.setText(currentFile.name);
+        loadFileContent(currentFile.id);
         updateFileExplorer();
     }
 
     private void updateFileExplorer() {
         fileExplorerPanel.removeAll();
 
-        for (String file : fileList) {
+        for (File file : fileList) {
 //            System.out.println(file);
 
-            JButton fileButton = new JButton(file);
+            JButton fileButton = new JButton(file.name);
             fileButton.setHorizontalAlignment(SwingConstants.LEFT);
             fileButton.setFocusPainted(false);
             fileButton.setBorder(BorderFactory.createEmptyBorder(5, 10, 5, 10)); // Padding
 
-            if (!file.equals(currentFile)) {
-                fileButton.setBackground(UIManager.getColor("Button.focusedBackground"));
+            if (currentFile!=null){
+                if (!file.name.equals(currentFile.name)) {
+                    fileButton.setBackground(UIManager.getColor("Button.focusedBackground"));
+                }
             }
+
 
             fileButton.addActionListener(e -> openFile(file));
 
@@ -213,16 +252,78 @@ public class Home extends JFrame {
         previewPane.setText("<html><body>" + html + "</body></html>");
     }
 
-    private void hideEditor(){
-        editorPanel.setVisible(false);
-        editorScrollPane.setVisible(false);
-        textEditor.setVisible(false);
+//    private void handleCreateFile(ActionEvent e) {
+//        String fileName = JOptionPane.showInputDialog(this, "Enter file name:");
+//        if (fileName == null || fileName.trim().isEmpty()) {
+//            JOptionPane.showMessageDialog(this, "File name cannot be empty.", "Error", JOptionPane.ERROR_MESSAGE);
+//            return;
+//        }
+//
+//        sendRequest("CREATE_FILE|" + sessionId + "|" + fileName);
+//        queryAllFiles();
+//    }
+
+//    private void handleDeleteFile(ActionEvent e) {
+//        if (currentFileId == null) {
+//            JOptionPane.showMessageDialog(this, "Select a file to delete.", "Error", JOptionPane.ERROR_MESSAGE);
+//            return;
+//        }
+//        sendRequest("DELETE_FILE|" + sessionId + "|" + currentFileId);
+//        queryAllFiles();
+//        fileContentArea.setText("");
+//        currentFileId = null;
+//    }
+
+    private void handleSaveFile(ActionEvent e) {
+        if (currentFile == null) {
+            JOptionPane.showMessageDialog(this, "Select a file to save.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        String content = textEditor.getText();
+//        String content = fileContentArea.getText();
+        sendRequest("UPDATE_FILE|" + sessionId + "|" + currentFile.id + "|" + content);
     }
 
-    private void showEditor(){
-        editorPanel.setVisible(true);
-        editorScrollPane.setVisible(true);
-        textEditor.setVisible(true);
+    private void loadFileContent(int fileId) {
+        String response = sendRequest("QUERY_FILE|" + sessionId + "|" + fileId);
+        if (response.startsWith("SUCCESS|")) {
+            textEditor.setText(response.substring(8));
+        } else {
+            JOptionPane.showMessageDialog(this, "Error loading file.", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void queryAllFiles() {
+        String response = sendRequest("QUERY_FILES|" + sessionId);
+        if (fileList!=null){
+            fileList.clear();
+        }
+
+        if (response.startsWith("SUCCESS|")) {
+            String[] files = response.substring(8).split(",");
+            for (String file : files) {
+                System.out.println(file);
+                System.out.println(file.split(":")[0] + " " + file.split(":")[1]);
+                int id = Integer.parseInt(file.split(":")[0]);
+                String name = file.split(":")[1];
+                fileList.add(new File(name, id)); // Format: "id:fileName"
+            }
+            return;
+        }
+        JOptionPane.showMessageDialog(this, response, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    private String sendRequest(String request) {
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+             PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
+
+            writer.println(request);
+            return reader.readLine();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "ERROR|Connection failed";
+        }
     }
 
     public static void main(String[] args) {
