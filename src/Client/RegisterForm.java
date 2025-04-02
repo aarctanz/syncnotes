@@ -110,7 +110,7 @@ public class RegisterForm extends JFrame {
              PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            String request = String.format("REGISTER|%s|%s|%s", name, email, password);
+            String request = String.format("REGISTER|%s|%s|%s\n", name, email, password);
             writer.println(request);
             String response = reader.readLine();
 

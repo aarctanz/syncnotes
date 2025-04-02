@@ -5,9 +5,12 @@ import java.net.*;
 import java.sql.*;
 import java.util.*;
 
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+
 public class Server {
     private static final int PORT = 5000;
-    private static Map<String, String> sessions = new HashMap<>(); // sessionId -> userid
+    private static Map<String, Integer> sessions = new HashMap<>(); // sessionId -> userid
     private static Connection connection;
 
     public static void main(String[] args) {
@@ -53,6 +56,8 @@ public class Server {
                 String request = reader.readLine();
                 String response = handleRequest(request);
                 writer.println(response);
+
+
             } catch (Exception e) {
                 e.printStackTrace();
             }
@@ -107,30 +112,7 @@ public class Server {
         }
     }
 
-//    private static String loginUser(String data) {
-//        try {
-//            String[] credentials = data.split("\\|");
-//            if (credentials.length < 2) return "ERROR Invalid format";
-//
-//            String email = credentials[0];
-//            String password = credentials[1];
-//
-//            PreparedStatement stmt = connection.prepareStatement("SELECT * FROM users WHERE email = ? AND password = ?");
-//            stmt.setString(1, email);
-//            stmt.setString(2, password);
-//            ResultSet rs = stmt.executeQuery();
-//
-//            if (rs.next()) {
-//                String sessionId = UUID.randomUUID().toString();
-//                sessions.put(sessionId, email);
-//                return "SUCCESS|" + sessionId;
-//            } else {
-//                return "ERROR Invalid credentials";
-//            }
-//        } catch (SQLException e) {
-//            return "ERROR Database error";
-//        }
-//    }
+
 
     private static String loginUser(String data) {
         try {
@@ -146,7 +128,7 @@ public class Server {
             ResultSet rs = stmt.executeQuery();
 
             if (rs.next()) {
-                String userId = String.valueOf(rs.getInt("id")); // Fetch user_id from result set
+                Integer userId = rs.getInt("id"); // Fetch user_id from result set
                 String sessionId = UUID.randomUUID().toString();
                 sessions.put(sessionId, userId); // Store user_id instead of email
                 return "SUCCESS|" + sessionId;
@@ -160,10 +142,10 @@ public class Server {
     private static String createFile(String data) {
         String sessionId = data.split("\\|")[0];
         String fileName = data.split("\\|")[1];
-        String userId = sessions.get(sessionId);
+        Integer userId = sessions.get(sessionId);
         try (PreparedStatement stmt = connection.prepareStatement(
                 "INSERT INTO notes (user_id, name) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setInt(1, Integer.parseInt(userId));
+            stmt.setInt(1, userId);
             stmt.setString(2, fileName);
             stmt.executeUpdate();
 
@@ -175,12 +157,12 @@ public class Server {
     }
 
     private static String queryAllFiles(String sessionId) {
-        String userId = sessions.get(sessionId);
+        Integer userId = sessions.get(sessionId);
         System.out.println(userId+" " + sessionId);
         System.out.println("here");
         try (PreparedStatement stmt = connection.prepareStatement(
                 "SELECT id, name FROM notes WHERE user_id = ?")) {
-            stmt.setInt(1, Integer.parseInt(userId));
+            stmt.setInt(1, (userId));
 
             ResultSet rs = stmt.executeQuery();
 
@@ -202,7 +184,9 @@ public class Server {
 
         String sessionId = parts[0];
         String fileId = parts[1];
-        String content = parts[2];
+        String encodedContent = parts[2];
+        String content = new String(Base64.getDecoder().decode(encodedContent), StandardCharsets.UTF_8);
+        System.out.println(content);
         try (PreparedStatement stmt = connection.prepareStatement(
                 "UPDATE notes SET content = ? WHERE id = ?")) {
             stmt.setString(1, content);
@@ -219,7 +203,7 @@ public class Server {
     private static String querySingleFile(String data) {
         String sessionId = data.split("\\|")[0];
         String fileId = data.split("\\|")[1];
-        int userId = Integer.parseInt(sessions.get(sessionId));
+        Integer userId = sessions.get(sessionId);
 
         try (PreparedStatement stmt = connection.prepareStatement(
                 "SELECT content FROM notes WHERE id = ? AND user_id = ?")) {
@@ -237,11 +221,12 @@ public class Server {
     private static String deleteFile(String data) {
         String sessionId = data.split("\\|")[0];
         String fileId = data.split("\\|")[1];
+        Integer userId = sessions.get(sessionId);
 
         try (PreparedStatement stmt = connection.prepareStatement(
-                "DELETE FROM notes WHERE id = ? AND user_id = (SELECT id FROM users WHERE session_id = ?)")) {
+                "DELETE FROM notes WHERE id = ? AND user_id =  ?")) {
             stmt.setInt(1, Integer.parseInt(fileId));
-            stmt.setString(2, sessionId);
+            stmt.setInt(2, userId);
 
             int rows = stmt.executeUpdate();
             return rows > 0 ? "SUCCESS|File deleted" : "ERROR|File not found";

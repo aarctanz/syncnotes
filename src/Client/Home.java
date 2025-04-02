@@ -18,6 +18,9 @@ import com.vladsch.flexmark.util.ast.Node;
 import java.net.*;
 import java.io.*;
 
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+
 public class Home extends JFrame {
     private JButton toggleSidebarButton, newNoteButton, searchButton, favoritesButton;
     private JButton profileButton, previewButton;
@@ -280,8 +283,10 @@ public class Home extends JFrame {
             return;
         }
         String content = textEditor.getText();
+        String encodedContent = Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
+
 //        String content = fileContentArea.getText();
-        sendRequest("UPDATE_FILE|" + sessionId + "|" + currentFile.id + "|" + content);
+        sendRequest("UPDATE_FILE|" + sessionId + "|" + currentFile.id + "|" + encodedContent);
     }
 
     private void loadFileContent(int fileId) {
@@ -297,16 +302,22 @@ public class Home extends JFrame {
         String response = sendRequest("QUERY_FILES|" + sessionId);
         if (fileList!=null){
             fileList.clear();
+        }else {
+            fileList = new ArrayList<>();
         }
 
         if (response.startsWith("SUCCESS|")) {
             String[] files = response.substring(8).split(",");
             for (String file : files) {
                 System.out.println(file);
-                System.out.println(file.split(":")[0] + " " + file.split(":")[1]);
-                int id = Integer.parseInt(file.split(":")[0]);
-                String name = file.split(":")[1];
-                fileList.add(new File(name, id)); // Format: "id:fileName"
+                if (!file.isEmpty()){
+//                    System.out.println(file);
+//                System.out.println(file.split(":")[0] + " " + file.split(":")[1]);
+                    int id = Integer.parseInt(file.split(":")[0]);
+                    String name = file.split(":")[1];
+                    fileList.add(new File(name, id));
+                }
+//                // Format: "id:fileName"
             }
             return;
         }
@@ -318,7 +329,7 @@ public class Home extends JFrame {
              PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
-            writer.println(request);
+            writer.println(request+"\n");
             return reader.readLine();
         } catch (Exception e) {
             e.printStackTrace();
