@@ -1,7 +1,6 @@
 package Client;
 
 import javax.swing.*;
-import com.formdev.flatlaf.FlatDarkLaf;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -14,15 +13,15 @@ public class LoginForm extends JFrame {
     private JPasswordField passwordField;
     private JButton loginButton;
 
+//  ip and port server running on
     private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 5000;
-
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@(.+)$");
     private static final Color PRIMARY_COLOR = new Color(150, 86, 248); // Purple Accent
 
     public LoginForm() {
-        setTitle("Login - DocSync");
+        setTitle("Login - SyncNotes");
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLayout(new GridBagLayout());
@@ -30,11 +29,6 @@ public class LoginForm extends JFrame {
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
-
-        // Logo
-//        logoLabel = new JLabel(new ImageIcon("logo.png")); // Load the logo
-//        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
-//        add(logoLabel, gbc);
 
         JLabel emailLabel = createSmoothLabel("Email:");
         gbc.gridx = 0; gbc.gridy = 1; gbc.gridwidth = 1;
@@ -57,6 +51,7 @@ public class LoginForm extends JFrame {
         gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
         add(loginButton, gbc);
 
+//        A button to go to register page if user don't have an account.
         JLabel registerLabel = new JLabel("Don't have an account? ");
         JButton registerLink = new JButton("Create an account");
         registerLink.setBorderPainted(false);
@@ -82,6 +77,7 @@ public class LoginForm extends JFrame {
         });
     }
 
+//    to create smooth labels, blurry text on linux because of different rendering architecture.
     private JLabel createSmoothLabel(String text) {
         return new JLabel(text) {
             @Override
@@ -117,10 +113,13 @@ public class LoginForm extends JFrame {
              PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
              BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
 
+//          Specific format implemented on server for smooth communication.
             String request = String.format("LOGIN|%s|%s", email, password);
             writer.println(request);
             String response = reader.readLine();
 
+//          Response Format: ("SUCCESS|%d", sessionId) or "ERROR Invalid credentials"
+//          After successful logging in, move to the home page with session id provided by server.
             if (response.startsWith("SUCCESS")) {
                 String[] parts = response.split("\\|");
                 if (parts.length >= 2) {

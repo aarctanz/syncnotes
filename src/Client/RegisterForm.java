@@ -1,7 +1,6 @@
 package Client;
 
 import javax.swing.*;
-import com.formdev.flatlaf.FlatDarkLaf;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -14,6 +13,7 @@ public class RegisterForm extends JFrame {
     private JPasswordField passwordField;
     private JButton registerButton;
 
+//  ip and port server running on
     private static final String SERVER_HOST = "localhost";
     private static final int SERVER_PORT = 5000;
 
@@ -60,6 +60,7 @@ public class RegisterForm extends JFrame {
         gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
         add(registerButton, gbc);
 
+//        Button to move to login page if already have an account
         JLabel loginLabel = new JLabel("Already have an account? ");
         JButton loginLink = new JButton("Login here");
         loginLink.setBorderPainted(false);
@@ -114,6 +115,8 @@ public class RegisterForm extends JFrame {
             writer.println(request);
             String response = reader.readLine();
 
+//          Response: "SUCCESS User registered" or "ERROR User already exists"
+//          After Registration complete move to login page for logging in.
             if (response.startsWith("SUCCESS")) {
                 JOptionPane.showMessageDialog(this, "Registration successful!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 new LoginForm().setVisible(true);

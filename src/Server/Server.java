@@ -32,6 +32,7 @@ public class Server {
         }
     }
 
+//    Create tables if not exist in database
     private static void initDb() {
         try (Statement stmt = connection.createStatement()) {
             stmt.execute("CREATE TABLE IF NOT EXISTS users (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, email VARCHAR(255) UNIQUE NOT NULL, password VARCHAR(255) NOT NULL)");
@@ -64,6 +65,7 @@ public class Server {
         }
     }
 
+//  parse first word as command and then rest as data
     private static String handleRequest(String request) {
         System.out.println(request);
         String[] parts = request.split("\\|", 2);
@@ -130,7 +132,7 @@ public class Server {
             if (rs.next()) {
                 Integer userId = rs.getInt("id"); // Fetch user_id from result set
                 String sessionId = UUID.randomUUID().toString();
-                sessions.put(sessionId, userId); // Store user_id instead of email
+                sessions.put(sessionId, userId); // Store user_id into sessions map alongside sessionId
                 return "SUCCESS|" + sessionId;
             } else {
                 return "ERROR Invalid credentials";
@@ -211,7 +213,8 @@ public class Server {
             stmt.setInt(2, userId);
 
             ResultSet rs = stmt.executeQuery();
-            return rs.next() ? "SUCCESS|" + rs.getString("content") : "ERROR|File not found";
+
+            return rs.next() ? "SUCCESS|" +Base64.getEncoder().encodeToString(rs.getString("content").getBytes(StandardCharsets.UTF_8)) : "ERROR|File not found";
         } catch (SQLException e) {
             e.printStackTrace();
             return "ERROR|Failed to retrieve file";

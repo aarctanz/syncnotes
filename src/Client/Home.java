@@ -1,7 +1,6 @@
 package Client;
 
 import javax.swing.*;
-import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -22,10 +21,7 @@ import java.util.Base64;
 import java.nio.charset.StandardCharsets;
 
 public class Home extends JFrame {
-    private JButton toggleSidebarButton, newNoteButton, searchButton, favoritesButton;
-    private JButton profileButton, previewButton;
-    private JPanel sidebar, editorPanel, fileExplorerPanel, topPanel;
-    private JScrollPane previewPanel;
+    private JPanel  editorPanel, fileExplorerPanel, topPanel;
     private JTextPane previewPane;
     private JLabel openedFileLabel;
     private RSyntaxTextArea textEditor;
@@ -42,11 +38,14 @@ public class Home extends JFrame {
     private static final int SERVER_PORT = 5000;
 
     public Home(String sessionId) {
+
+//      If user is not logged in, move to the login page.
         this.sessionId = sessionId;
         if (sessionId.isEmpty()){
             JOptionPane.showMessageDialog(this, "Please Login first", "Error", JOptionPane.ERROR_MESSAGE);
             new LoginForm().setVisible(true);
             dispose();
+            return;
         }
         fileList = new ArrayList<>();
         queryAllFiles();
@@ -68,21 +67,23 @@ public class Home extends JFrame {
 
         JButton collapseSidebar = new JButton("☰");
         JButton newNote = new JButton("+");
-        JButton search = new JButton("🔍");
-        JButton favorites = new JButton("★");
+//        JButton search = new JButton("🔍");
+//        JButton favorites = new JButton("★");
 
         // Profile & Preview toggle button on the right
         JButton saveButton = new JButton("save");
         JButton previewToggle = new JButton("👁️");
         JButton profile = new JButton("👤");
+        JButton deleteButton = new JButton("\uE872");
 
         leftButtons.add(collapseSidebar);
         leftButtons.add(newNote);
-        leftButtons.add(search);
-        leftButtons.add(favorites);
+//        leftButtons.add(search);
+//        leftButtons.add(favorites);
 
         rightButtons.add(saveButton);
         rightButtons.add(previewToggle);
+        rightButtons.add(deleteButton);
         rightButtons.add(profile);
 
         openedFileLabel = new JLabel("No file opened.");
@@ -104,25 +105,29 @@ public class Home extends JFrame {
         textEditor = new RSyntaxTextArea();
         textEditor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_MARKDOWN);
         textEditor.setCodeFoldingEnabled(true);
-        textEditor.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        textEditor.setFont(new Font("Monospaced", Font.PLAIN, 18));
+
+//      Caret listener(listens to every text change in editor) updates preview on every change
         textEditor.addCaretListener(e -> updatePreview());
 
         editorScrollPane = new RTextScrollPane(textEditor);
         editorPanel.add(editorScrollPane, BorderLayout.CENTER);
         
 
-        // Markdown Preview Panel (Initially empty and empty)
+        // Markdown Preview Panel (Initially empty and hidden)
         previewPane = new JTextPane();
         previewPane.setContentType("text/html");
         previewPane.setEditable(false);
+        previewPane.setFont(new Font("Monospaced", Font.PLAIN, 18));
         JScrollPane previewScrollPane = new JScrollPane(previewPane);
         previewPane.setVisible(false);
         previewScrollPane.setVisible(false);
 
+//      Inner split panel for text editor and preview panel
         JSplitPane editorAndPreviewSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, editorScrollPane, previewScrollPane);
         editorAndPreviewSplitPane.setResizeWeight(0.5); // Both get equal space initially
 
-        // Split pane for Editor & Preview
+//      Outer Split panel for FileExplorer and inner split panel
         JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, fileExplorerPanel, editorAndPreviewSplitPane);
         splitPane.setResizeWeight(0.30);
 
@@ -131,7 +136,8 @@ public class Home extends JFrame {
         add(topBar, BorderLayout.NORTH);
         add(splitPane, BorderLayout.CENTER);
 
-        // Action Listeners
+//      Special event listener to recalculate inner split panel and file explorer width when
+//      toggling file explorer panel or preview panel
         previewToggle.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -163,20 +169,16 @@ public class Home extends JFrame {
             }
         });
 
-        newNote.addActionListener(e->{
-            createNewFile();
-        });
+        newNote.addActionListener(this::createNewFile);
+        saveButton.addActionListener(this::handleSaveFile);
+        deleteButton.addActionListener(this::handleDeleteFile);
 
-        saveButton.addActionListener(e->{
-            handleSaveFile(e);
-        });
-//        hideEditor();
     }
 
-    class File{
-        private String name;
-        private String code;
-        private int id;
+//  A custom class to hold information about notes or files.
+    static class File{
+        private final String name;
+        private final int id;
 
         public File(String name, int id) {
             this.name = name;
@@ -184,7 +186,7 @@ public class Home extends JFrame {
         }
 
 
-        public static boolean checkExists(String filename, List<File> fileList){
+        public static boolean checkExistsWithName(String filename, List<File> fileList){
             for (File file: fileList){
                 if (filename.equals(file.name)){
                     return true;
@@ -194,10 +196,10 @@ public class Home extends JFrame {
         }
     }
 
-    private void createNewFile(){
+    private void createNewFile(ActionEvent e){
         String fileName = JOptionPane.showInputDialog(this, "Enter File name: ", "New file", JOptionPane.PLAIN_MESSAGE);
         if (fileName!=null && !fileName.trim().isEmpty()){
-            if (File.checkExists(fileName, fileList)){
+            if (File.checkExistsWithName(fileName, fileList)){
                 JOptionPane.showMessageDialog(this, "Filename already exists.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -218,9 +220,8 @@ public class Home extends JFrame {
     private void updateFileExplorer() {
         fileExplorerPanel.removeAll();
 
+//      create buttons for every note or files and add event listeners to them for opening it.
         for (File file : fileList) {
-//            System.out.println(file);
-
             JButton fileButton = new JButton(file.name);
             fileButton.setHorizontalAlignment(SwingConstants.LEFT);
             fileButton.setFocusPainted(false);
@@ -255,28 +256,21 @@ public class Home extends JFrame {
         previewPane.setText("<html><body>" + html + "</body></html>");
     }
 
-//    private void handleCreateFile(ActionEvent e) {
-//        String fileName = JOptionPane.showInputDialog(this, "Enter file name:");
-//        if (fileName == null || fileName.trim().isEmpty()) {
-//            JOptionPane.showMessageDialog(this, "File name cannot be empty.", "Error", JOptionPane.ERROR_MESSAGE);
-//            return;
-//        }
-//
-//        sendRequest("CREATE_FILE|" + sessionId + "|" + fileName);
-//        queryAllFiles();
-//    }
 
-//    private void handleDeleteFile(ActionEvent e) {
-//        if (currentFileId == null) {
-//            JOptionPane.showMessageDialog(this, "Select a file to delete.", "Error", JOptionPane.ERROR_MESSAGE);
-//            return;
-//        }
-//        sendRequest("DELETE_FILE|" + sessionId + "|" + currentFileId);
-//        queryAllFiles();
-//        fileContentArea.setText("");
-//        currentFileId = null;
-//    }
+    private void handleDeleteFile(ActionEvent e) {
+        if (currentFile == null) {
+            JOptionPane.showMessageDialog(this, "Select a file to delete.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        sendRequest("DELETE_FILE|" + sessionId + "|" + currentFile.id);
+        queryAllFiles();
+        textEditor.setText("");
+        openedFileLabel.setText("");
+        currentFile = null;
+        updateFileExplorer();
+    }
 
+//  Uses base64 encoding to convert multiple lines into single lines to better handle it on server.
     private void handleSaveFile(ActionEvent e) {
         if (currentFile == null) {
             JOptionPane.showMessageDialog(this, "Select a file to save.", "Error", JOptionPane.ERROR_MESSAGE);
@@ -285,14 +279,17 @@ public class Home extends JFrame {
         String content = textEditor.getText();
         String encodedContent = Base64.getEncoder().encodeToString(content.getBytes(StandardCharsets.UTF_8));
 
-//        String content = fileContentArea.getText();
         sendRequest("UPDATE_FILE|" + sessionId + "|" + currentFile.id + "|" + encodedContent);
     }
 
+//  loads content of file into base64 format and then decodes it.
+//  Response Format: (SUCCESS|%s, content in base64 format) or ERROR|Failed to retrieve file
     private void loadFileContent(int fileId) {
         String response = sendRequest("QUERY_FILE|" + sessionId + "|" + fileId);
         if (response.startsWith("SUCCESS|")) {
-            textEditor.setText(response.substring(8));
+            String content = new String(Base64.getDecoder().decode(response.substring(8)), StandardCharsets.UTF_8);
+
+            textEditor.setText(content);
         } else {
             JOptionPane.showMessageDialog(this, "Error loading file.", "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -306,24 +303,24 @@ public class Home extends JFrame {
             fileList = new ArrayList<>();
         }
 
+//      Format: SUCCESS|"id:fileName","id:fileName","id:fileName"...
         if (response.startsWith("SUCCESS|")) {
             String[] files = response.substring(8).split(",");
+
             for (String file : files) {
-                System.out.println(file);
                 if (!file.isEmpty()){
-//                    System.out.println(file);
-//                System.out.println(file.split(":")[0] + " " + file.split(":")[1]);
                     int id = Integer.parseInt(file.split(":")[0]);
                     String name = file.split(":")[1];
                     fileList.add(new File(name, id));
                 }
-//                // Format: "id:fileName"
             }
+
             return;
         }
         JOptionPane.showMessageDialog(this, response, "Error", JOptionPane.ERROR_MESSAGE);
     }
 
+//  A wrapper method to send requests to the server
     private String sendRequest(String request) {
         try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
              PrintWriter writer = new PrintWriter(new OutputStreamWriter(socket.getOutputStream()), true);
@@ -337,6 +334,7 @@ public class Home extends JFrame {
         }
     }
 
+//  If home page started directly the pass sessionId as empty string.
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             ThemeManager.applyTheme();
